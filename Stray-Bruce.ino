@@ -130,14 +130,23 @@ void runBTSpam() {
 void runSystemInfo() {
   state = 1; tft.fillScreen(ILI9341_BLACK);
   drawExitButton();
+  
   tft.setTextColor(STRAY_YELLOW); tft.setTextSize(2);
   tft.setCursor(10, 10); tft.println("SYSTEM STATUS:");
   tft.drawFastHLine(0, 35, 320, STRAY_YELLOW);
+  
   tft.setTextSize(1);
   tft.setCursor(10, 45); tft.print("USER: STRAY_2025 (10y)");
   tft.setCursor(10, 65); tft.print("CHIP: S3 N16R8 | BDAY: APR 20");
+  
+  // Рамка осциллографа
   tft.drawRect(10, 130, 300, 80, STRAY_YELLOW);
   graphX = 11;
+
+  // --- ВОТ ОНА, ПАСХАЛКА! ---
+  tft.setTextColor(ILI9341_GREEN); // Зеленый "матричный" цвет
+  tft.setCursor(10, 220); 
+  tft.println("STRAY-BRUCE OS v9.0 ONLINE (By Google Search 1.0)");
 }
 
 void updateGraph() {
