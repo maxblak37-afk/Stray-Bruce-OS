@@ -3,7 +3,9 @@
 #include <Wire.h>
 #include <Adafruit_FT6206.h>
 #include <WiFi.h>
-#include <NimBLEDevice.h> // Установи NimBLE-Arduino!
+#include <NimBLEDevice.h> 
+#include "USB.h"
+#include "USBHIDKeyboard.h"
 
 // --- КОНФИГУРАЦИЯ ПИНОВ (Stray-Bruce Stick) ---
 #define TFT_CS 42
@@ -16,6 +18,7 @@
 
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 Adafruit_FT6206 ts = Adafruit_FT6206();
+USBHIDKeyboard Keyboard;
 
 // Глобальные переменные состояния
 int current = 0;
@@ -46,10 +49,12 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   
+  USB.begin(); // Инициализация USB для BadUSB
   drawMain();
 }
 
-// --- ФУНКЦИИ BLUETOOTH SPAM ---
+// --- ФУНКЦИИ ПРИЛОЖЕНИЙ ---
+
 void startSpam() {
   NimBLEDevice::init("Stray-Bruce");
   pAdvertising = NimBLEDevice::getAdvertising();
@@ -66,19 +71,30 @@ void stopSpam() {
   isSpamming = false;
 }
 
+void executePayload() {
+  Keyboard.begin();
+  delay(1000);
+  // Печатаем приветствие в блокнот
+  Keyboard.press(KEY_LEFT_GUI); Keyboard.press('r'); Keyboard.releaseAll();
+  delay(500);
+  Keyboard.print("notepad");
+  Keyboard.press(KEY_RETURN); Keyboard.releaseAll();
+  delay(1000);
+  Keyboard.println("HACKED BY STRAY-BRUCE OS v9.5");
+  Keyboard.println("Author: Stray_2025 (Turning 11 on Apr 20!)");
+}
+
 // --- ОТРИСОВКА ИНТЕРФЕЙСОВ ---
 
 void drawMain() {
   state = 0; 
-  if (isSpamming) stopSpam(); // Выключаем спам при выходе в меню
+  if (isSpamming) stopSpam();
   tft.fillScreen(ILI9341_BLACK);
   tft.fillRect(0, 0, 320, 35, STRAY_YELLOW);
   tft.setTextColor(ILI9341_BLACK); tft.setTextSize(2);
   tft.setCursor(65, 10); tft.print("STRAY-BRUCE STICK");
-  
   tft.drawRect(60, 80, 200, 80, STRAY_YELLOW); 
   drawMainText();
-  
   tft.fillTriangle(15, 120, 45, 90, 45, 150, STRAY_YELLOW);   
   tft.fillTriangle(305, 120, 275, 90, 275, 150, STRAY_YELLOW); 
 }
@@ -112,41 +128,41 @@ void runBTSpam() {
   tft.setTextColor(STRAY_ORANGE); tft.setTextSize(2);
   tft.setCursor(10, 10); tft.println("APPLE BT SPAM");
   tft.drawFastHLine(0, 35, 320, STRAY_ORANGE);
-  
   tft.setTextSize(1);
   tft.setCursor(10, 50); tft.print("STATUS: ");
   if (isSpamming) { tft.setTextColor(ILI9341_GREEN); tft.println("ATTACKING..."); }
   else { tft.setTextColor(ILI9341_RED); tft.println("READY"); }
-  
   tft.setTextColor(STRAY_ORANGE);
   tft.drawRect(80, 100, 160, 80, STRAY_ORANGE);
   tft.setCursor(120, 135); tft.setTextSize(2);
   tft.print(isSpamming ? "STOP" : "START");
-  
-  tft.setTextSize(1);
-  tft.setCursor(75, 210); tft.println("Target: AirPods Pro Pop-up");
+}
+
+void runBadUSB() {
+  state = 1; tft.fillScreen(ILI9341_BLACK);
+  drawExitButton();
+  tft.setTextColor(STRAY_ORANGE); tft.setTextSize(2);
+  tft.setCursor(10, 10); tft.println("BAD USB MODE");
+  tft.drawFastHLine(0, 35, 320, STRAY_ORANGE);
+  tft.drawRect(60, 100, 200, 60, STRAY_YELLOW);
+  tft.setCursor(95, 125); tft.print("RUN PAYLOAD");
+  tft.setTextSize(1); tft.setTextColor(ILI9341_WHITE);
+  tft.setCursor(10, 200); tft.println("Connect to PC and press button");
 }
 
 void runSystemInfo() {
   state = 1; tft.fillScreen(ILI9341_BLACK);
   drawExitButton();
-  
   tft.setTextColor(STRAY_YELLOW); tft.setTextSize(2);
   tft.setCursor(10, 10); tft.println("SYSTEM STATUS:");
   tft.drawFastHLine(0, 35, 320, STRAY_YELLOW);
-  
   tft.setTextSize(1);
   tft.setCursor(10, 45); tft.print("USER: STRAY_2025 (10y)");
   tft.setCursor(10, 65); tft.print("CHIP: S3 N16R8 | BDAY: APR 20");
-  
-  // Рамка осциллографа
   tft.drawRect(10, 130, 300, 80, STRAY_YELLOW);
   graphX = 11;
-
-  // --- ВОТ ОНА, ПАСХАЛКА! ---
-  tft.setTextColor(ILI9341_GREEN); // Зеленый "матричный" цвет
-  tft.setCursor(10, 220); 
-  tft.println("STRAY-BRUCE OS v9.0 ONLINE (By Google Search 1.0)");
+  tft.setTextColor(ILI9341_GREEN);
+  tft.setCursor(10, 220); tft.println("STRAY-BRUCE OS v9.5 ONLINE (By Google Search 1.0)");
 }
 
 void updateGraph() {
@@ -177,15 +193,19 @@ void loop() {
       else if (x > 60 && x < 260 && y > 80 && y < 160) { 
         if (current == 0) runScanner(); 
         else if (current == 1) runBTSpam();
+        else if (current == 3) runBadUSB();
         else if (current == 4) runSystemInfo();
         delay(300); 
       }
     } 
     else if (state == 1) {
       if (x > 270 && y < 45) { drawMain(); delay(300); } // Выход
-      if (current == 1 && x > 80 && x < 240 && y > 100 && y < 180) { // Кнопка START/STOP
+      if (current == 1 && x > 80 && x < 240 && y > 100 && y < 180) { // BT Start/Stop
         if (!isSpamming) startSpam(); else stopSpam();
         runBTSpam(); delay(400);
+      }
+      if (current == 3 && x > 60 && x < 260 && y > 100 && y < 160) { // BadUSB Trigger
+        executePayload(); delay(400);
       }
     }
   }
