@@ -7,7 +7,7 @@
 #include "USB.h"
 #include "USBHIDKeyboard.h"
 
-// --- КОНФИГУРАЦИЯ ПИНОВ ---
+// --- ПИНЫ (Твоя база) ---
 #define TFT_CS 42
 #define TFT_DC 40
 #define TFT_RST 41
@@ -45,14 +45,14 @@ void setup() {
 
 // --- ЛОГИКА ВЫХОДА ---
 void drawExitButton() {
-  tft.fillRect(0, 190, 50, 50, ILI9341_RED); // Кнопка стала чуть больше
+  tft.fillRect(0, 190, 50, 50, ILI9341_RED); 
   tft.setTextColor(ILI9341_WHITE); tft.setTextSize(2);
   tft.setCursor(18, 205); tft.print("X");
 }
 
 bool checkExit(int tx, int ty) {
-  // Зона в левом нижнем углу экрана (с запасом)
-  if (tx < 70 && ty > 170) return true;
+  // Универсальная зона выхода для Wokwi (Левый нижний угол)
+  if (tx < 75 && ty > 170) return true;
   return false;
 }
 
@@ -78,12 +78,10 @@ void runRadar() {
   while(state == 1) {
     int n = WiFi.scanNetworks();
     
-    // ОЧИСТКА: Стираем старые точки черным кругом
+    // ОЧИСТКА: Стираем старые точки перед новым сканом
     tft.fillCircle(160, 120, 100, ILI9341_BLACK);
-    // Рисуем сетку
     tft.drawCircle(160, 120, 100, STRAY_YELLOW);
     tft.drawCircle(160, 120, 60, STRAY_YELLOW);
-    tft.drawCircle(160, 120, 20, STRAY_YELLOW);
     tft.drawLine(60, 120, 260, 120, STRAY_YELLOW);
     tft.drawLine(160, 20, 160, 220, STRAY_YELLOW);
 
@@ -93,7 +91,7 @@ void runRadar() {
       tft.drawLine(160, 120, 160+cos(radarAngle)*100, 120+sin(radarAngle)*100, STRAY_YELLOW);
       radarAngle += 0.3;
 
-      for (int i = 0; i < n && i < 10; i++) {
+      for (int i = 0; i < n && i < 8; i++) {
         int d = map(WiFi.RSSI(i), -100, -30, 100, 10);
         float pAng = i * (6.28 / (n > 0 ? n : 1));
         uint16_t dotColor = (WiFi.SSID(i).indexOf("Wokwi") >= 0) ? ILI9341_RED : STRAY_YELLOW;
@@ -106,7 +104,7 @@ void runRadar() {
         int ty = map(p.x, 0, 240, 0, 240);
         if (checkExit(tx, ty)) { drawMain(); return; }
       }
-      delay(25);
+      delay(20);
     }
   }
 }
@@ -164,7 +162,7 @@ void runSystemInfo() {
   tft.drawRect(60, 130, 250, 80, STRAY_YELLOW);
   graphX = 61;
   tft.setTextColor(0x07E0);
-  tft.setCursor(60, 220); tft.println("STRAY-BRUCE OS v11.0 Clean Radar");
+  tft.setCursor(60, 220); tft.println("STRAY-BRUCE OS v11.1 Clean Fix");
 }
 
 void updateGraph() {
@@ -183,7 +181,7 @@ void drawMain() {
   tft.fillScreen(ILI9341_BLACK);
   tft.fillRect(0, 0, 320, 40, STRAY_YELLOW);
   tft.setTextColor(ILI9341_BLACK); tft.setTextSize(2);
-  tft.setCursor(65, 12); tft.print("STRAY-BRUCE v11.0");
+  tft.setCursor(65, 12); tft.print("STRAY-BRUCE v11.1");
   tft.drawRect(60, 85, 200, 80, STRAY_YELLOW); 
   drawMainText();
   tft.fillTriangle(15, 125, 45, 95, 45, 155, STRAY_YELLOW);   
@@ -203,7 +201,7 @@ void loop() {
     int tx = map(p.y, 0, 320, 0, 320);
     int ty = map(p.x, 0, 240, 0, 240);
 
-    if (state == 0) { // Меню
+    if (state == 0) { // Навигация в меню
       if (tx < 60) { current = (current > 0) ? current - 1 : 4; drawMainText(); delay(250); }
       else if (tx > 260) { current = (current + 1) % 5; drawMainText(); delay(250); }
       else if (tx > 60 && tx < 260 && ty > 80 && ty < 160) { 
@@ -215,13 +213,12 @@ void loop() {
         delay(300); 
       }
     } 
-    else if (state == 1) { // Выход
+    else if (state == 1) { // Логика выхода
       if (checkExit(tx, ty)) { drawMain(); delay(300); }
+      
+      // Кнопки внутри BT Spam
       if (current == 2 && tx > 90 && tx < 240 && ty > 100 && ty < 180) { 
         if (!isSpamming) startSpam(); else stopSpam(); runBTSpam(); delay(400); 
-      }
-      if (current == 3 && tx > 70 && tx < 250 && ty > 100 && ty < 160) {
-        Keyboard.println("HACKED BY STRAY-BRUCE"); delay(400);
       }
     }
   }
