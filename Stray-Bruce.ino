@@ -7,7 +7,7 @@
 #include "USB.h"
 #include "USBHIDKeyboard.h"
 
-// --- КОНФИГУРАЦИЯ ПИНОВ ---
+// --- ПИНЫ (Твоя база) ---
 #define TFT_CS 42
 #define TFT_DC 40
 #define TFT_RST 41
@@ -20,18 +20,17 @@ USBHIDKeyboard Keyboard;
 
 // Глобальные переменные
 int current = 0;
-int state = 0; // 0-Main, 1-App
+int state = 0; 
 const char* menu[] = {"WIFI SCAN", "RADAR", "BT SPAM", "BAD USB", "SYSTEM"};
 
-// Переменные для Радара
+// Переменные Радара
 float radarAngle = 0;
-
-// Переменные для BT Spam
+// Переменные BT Spam
 bool isSpamming = false;
 NimBLEAdvertising *pAdvertising;
 uint8_t apple_packet[] = { 0x1E, 0xFF, 0x4C, 0x00, 0x07, 0x19, 0x07, 0x02, 0x20, 0x75, 0xAA, 0x30, 0x01, 0x00, 0x00, 0x45, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12, 0x12 };
 
-// Переменные для Системного графика
+// Переменные Графика
 int graphX = 11;
 int lastY = 180;
 unsigned long lastGraphUpdate = 0;
@@ -48,14 +47,11 @@ void setup() {
 }
 
 // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
-float getDist(int rssi) {
-  return pow(10.0, ((-30.0 - rssi) / 25.0));
-}
-
 void drawExitButton() {
-  tft.fillRect(280, 0, 40, 35, ILI9341_RED); 
+  // Крестик теперь СЛЕВА (как на твоем фото) и область тача под него настроена
+  tft.fillRect(0, 0, 40, 40, ILI9341_RED); 
   tft.setTextColor(ILI9341_WHITE); tft.setTextSize(2);
-  tft.setCursor(292, 10); tft.print("X");
+  tft.setCursor(12, 12); tft.print("X");
 }
 
 // --- ПРИЛОЖЕНИЯ ---
@@ -67,6 +63,7 @@ void runScanner() {
   tft.println("SCANNING WIFI...");
   int n = WiFi.scanNetworks();
   for (int i = 0; i < n && i < 8; i++) {
+    tft.setCursor(10, 70 + (i*15));
     tft.setTextColor(STRAY_YELLOW); tft.print(i+1); tft.print(": ");
     tft.setTextColor(ILI9341_WHITE); tft.println(WiFi.SSID(i));
   }
@@ -74,16 +71,13 @@ void runScanner() {
 
 void runRadar() {
   state = 1; tft.fillScreen(ILI9341_BLACK);
-  tft.drawCircle(160, 120, 100, STRAY_YELLOW);
-  tft.drawCircle(160, 120, 60, STRAY_YELLOW);
-  tft.drawCircle(160, 120, 20, STRAY_YELLOW);
-  tft.drawLine(60, 120, 260, 120, STRAY_YELLOW);
-  tft.drawLine(160, 20, 160, 220, STRAY_YELLOW);
   drawExitButton();
-
-  while(true) {
+  while(state == 1) {
     int n = WiFi.scanNetworks();
     for(int a=0; a<10; a++) {
+      tft.drawCircle(160, 120, 100, STRAY_YELLOW);
+      tft.drawCircle(160, 120, 60, STRAY_YELLOW);
+      
       float oldAngle = radarAngle - 0.2;
       tft.drawLine(160, 120, 160+cos(oldAngle)*100, 120+sin(oldAngle)*100, ILI9341_BLACK);
       tft.drawLine(160, 120, 160+cos(radarAngle)*100, 120+sin(radarAngle)*100, STRAY_YELLOW);
@@ -101,8 +95,8 @@ void runRadar() {
       if (ts.touched()) {
         TS_Point p = ts.getPoint();
         int tx = map(p.y, 0, 320, 0, 320);
-        int ty = map(p.x, 0, 240, 0, 240);
-        if (tx > 270 && ty < 45) { drawMain(); return; }
+        int ty = map(p.x, 0, 240, 240, 0); // Калибровка Y
+        if (tx < 50 && ty < 50) { drawMain(); return; } // Клик по крестику
       }
       delay(30);
     }
@@ -129,11 +123,13 @@ void runBTSpam() {
   state = 1; tft.fillScreen(ILI9341_BLACK);
   drawExitButton();
   tft.setTextColor(STRAY_ORANGE); tft.setTextSize(2);
-  tft.setCursor(10, 10); tft.println("APPLE BT SPAM");
-  tft.drawFastHLine(0, 35, 320, STRAY_ORANGE);
-  tft.setTextSize(1); tft.setCursor(10, 50); tft.print("STATUS: ");
+  tft.setCursor(50, 10); tft.println("APPLE BT SPAM");
+  tft.drawFastHLine(0, 45, 320, STRAY_ORANGE);
+  
+  tft.setTextSize(1); tft.setCursor(10, 60); tft.print("STATUS: ");
   if (isSpamming) { tft.setTextColor(0x07E0); tft.println("ATTACKING..."); }
   else { tft.setTextColor(ILI9341_RED); tft.println("READY"); }
+  
   tft.drawRect(80, 100, 160, 80, STRAY_ORANGE);
   tft.setCursor(120, 135); tft.setTextSize(2);
   tft.print(isSpamming ? "STOP" : "START");
@@ -143,7 +139,7 @@ void runBadUSB() {
   state = 1; tft.fillScreen(ILI9341_BLACK);
   drawExitButton();
   tft.setTextColor(STRAY_ORANGE); tft.setTextSize(2);
-  tft.setCursor(10, 10); tft.println("BAD USB MODE");
+  tft.setCursor(50, 10); tft.println("BAD USB MODE");
   tft.drawRect(60, 100, 200, 60, STRAY_YELLOW);
   tft.setCursor(95, 125); tft.print("RUN PAYLOAD");
 }
@@ -152,15 +148,15 @@ void runSystemInfo() {
   state = 1; tft.fillScreen(ILI9341_BLACK);
   drawExitButton();
   tft.setTextColor(STRAY_YELLOW); tft.setTextSize(2);
-  tft.setCursor(10, 10); tft.println("SYSTEM STATUS:");
-  tft.drawFastHLine(0, 35, 320, STRAY_YELLOW);
+  tft.setCursor(50, 10); tft.println("SYSTEM STATUS:");
+  tft.drawFastHLine(0, 45, 320, STRAY_YELLOW);
   tft.setTextSize(1);
-  tft.setCursor(10, 45); tft.print("USER: STRAY_2025");
-  tft.setCursor(10, 65); tft.print("CHIP: S3 N16R8 | NORILSK");
+  tft.setCursor(10, 55); tft.print("USER: STRAY_2025");
+  tft.setCursor(10, 75); tft.print("CHIP: S3 N16R8 | ONLINE");
   tft.drawRect(10, 130, 300, 80, STRAY_YELLOW);
   graphX = 11;
   tft.setTextColor(0x07E0);
-  tft.setCursor(10, 220); tft.println("STRAY-BRUCE OS v10.5 ONLINE (By Google)");
+  tft.setCursor(10, 220); tft.println("STRAY-BRUCE OS v10.7 ONLINE (Fix Touch)");
 }
 
 void updateGraph() {
@@ -177,32 +173,32 @@ void updateGraph() {
 void drawMain() {
   state = 0; if (isSpamming) stopSpam();
   tft.fillScreen(ILI9341_BLACK);
-  tft.fillRect(0, 0, 320, 35, STRAY_YELLOW);
+  tft.fillRect(0, 0, 320, 45, STRAY_YELLOW);
   tft.setTextColor(ILI9341_BLACK); tft.setTextSize(2);
-  tft.setCursor(65, 10); tft.print("STRAY-BRUCE v10.5");
-  tft.drawRect(60, 80, 200, 80, STRAY_YELLOW); 
+  tft.setCursor(65, 15); tft.print("STRAY-BRUCE v10.7");
+  tft.drawRect(60, 85, 200, 80, STRAY_YELLOW); 
   drawMainText();
-  tft.fillTriangle(15, 120, 45, 90, 45, 150, STRAY_YELLOW);   
-  tft.fillTriangle(305, 120, 275, 90, 275, 150, STRAY_YELLOW); 
+  tft.fillTriangle(15, 125, 45, 95, 45, 155, STRAY_YELLOW);   
+  tft.fillTriangle(305, 125, 275, 95, 275, 155, STRAY_YELLOW); 
 }
 
 void drawMainText() {
-  tft.fillRect(62, 82, 196, 76, ILI9341_BLACK);
+  tft.fillRect(62, 87, 196, 76, ILI9341_BLACK);
   tft.setTextColor(STRAY_YELLOW); tft.setTextSize(2);
   int textLen = strlen(menu[current]);
-  tft.setCursor(160 - (textLen * 6), 110); tft.print(menu[current]);
+  tft.setCursor(160 - (textLen * 6), 115); tft.print(menu[current]);
 }
 
 void loop() {
   if (ts.touched()) {
     TS_Point p = ts.getPoint();
-    int y = map(p.x, 0, 240, 0, 240);
-    int x = map(p.y, 0, 320, 0, 320);
+    int tx = map(p.y, 0, 320, 0, 320);
+    int ty = map(p.x, 0, 240, 240, 0); // Исправленная инверсия Y
 
-    if (state == 0) { // Навигация
-      if (x < 60) { current = (current > 0) ? current - 1 : 4; drawMainText(); delay(250); }
-      else if (x > 260) { current = (current + 1) % 5; drawMainText(); delay(250); }
-      else if (x > 60 && x < 260 && y > 80 && y < 160) { 
+    if (state == 0) { // Навигация в меню
+      if (tx < 60) { current = (current > 0) ? current - 1 : 4; drawMainText(); delay(250); }
+      else if (tx > 260) { current = (current + 1) % 5; drawMainText(); delay(250); }
+      else if (tx > 60 && tx < 260 && ty > 80 && ty < 160) { 
         if (current == 0) runScanner(); 
         else if (current == 1) runRadar();
         else if (current == 2) runBTSpam();
@@ -212,12 +208,12 @@ void loop() {
       }
     } 
     else if (state == 1) { // Внутри приложений
-      if (x > 270 && y < 45) { drawMain(); delay(300); }
-      if (current == 2 && x > 80 && x < 240 && y > 100 && y < 180) { // BT Start/Stop
-        if (!isSpamming) startSpam(); else stopSpam(); runBTSpam(); delay(400);
+      if (tx < 50 && ty < 50) { drawMain(); delay(300); } // Выход по крестику
+      if (current == 2 && tx > 80 && tx < 240 && ty > 100 && ty < 180) { 
+        if (!isSpamming) startSpam(); else stopSpam(); runBTSpam(); delay(400); 
       }
-      if (current == 3 && x > 60 && x < 260 && y > 100 && y < 160) { 
-        Keyboard.begin(); Keyboard.println("HACKED BY STRAY-BRUCE"); delay(400); 
+      if (current == 3 && tx > 60 && tx < 260 && ty > 100 && ty < 160) {
+        Keyboard.println("HACKED BY STRAY-BRUCE"); delay(400);
       }
     }
   }
